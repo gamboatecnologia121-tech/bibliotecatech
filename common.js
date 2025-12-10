@@ -16,17 +16,31 @@ function toast(msg, type = "info") {
 async function appsScriptRequest(params = {}) {
     if (!APPS_SCRIPT_URL) throw new Error("APPS_SCRIPT_URL não configurada");
     const url = new URL(APPS_SCRIPT_URL);
+    let res;
+    
     if (params.method === "POST") {
-        const res = await fetch(APPS_SCRIPT_URL, {
+        res = await fetch(APPS_SCRIPT_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(params.body || {})
         });
-        return res.json();
+    } else {
+        Object.entries(params.query || {}).forEach(([k, v]) => url.searchParams.append(k, v));
+        res = await fetch(url.toString());
     }
-    Object.entries(params.query || {}).forEach(([k, v]) => url.searchParams.append(k, v));
-    const res = await fetch(url.toString());
-    return res.json();
+    
+    if (!res.ok) {
+        throw new Error(`Erro na requisição: ${res.status} ${res.statusText}`);
+    }
+    
+    const data = await res.json();
+    
+    // Verificar se há erro na resposta do Apps Script
+    if (data.error) {
+        throw new Error(data.error);
+    }
+    
+    return data;
 }
 
 // Backend usa "action" e email

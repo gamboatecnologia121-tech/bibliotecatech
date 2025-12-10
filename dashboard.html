@@ -270,14 +270,34 @@
                 btn.addEventListener('click', async (e) => {
                     const livroId = e.target.dataset.livro;
                     const livro = state.livros.find(l => l.id === livroId);
-                    if (livro?.disponivel) {
+                    
+                    if (!livro) {
+                        toast("Livro não encontrado", "error");
+                        return;
+                    }
+                    
+                    if (!livro.disponivel) {
+                        toast("Livro indisponível", "error");
+                        return;
+                    }
+                    
+                    try {
                         await registrarEmprestimo(state.user.email, livroId);
                         toast("Empréstimo solicitado!");
+                        
+                        // Atualizar lista de livros
                         await buscarLivros();
+                        
+                        // Atualizar estatísticas
+                        const roleData = await fetchRole(state.user.email);
+                        await updateStats(roleData);
+                        
+                        // Re-renderizar componentes
                         renderCatalog();
                         renderFeaturedBooks();
-                    } else {
-                        toast("Livro indisponível", "error");
+                    } catch (err) {
+                        toast("Erro ao solicitar empréstimo: " + (err.message || "Erro desconhecido"), "error");
+                        console.error("Erro ao registrar empréstimo:", err);
                     }
                 });
             });
@@ -420,12 +440,40 @@
         document.getElementById('filtro-busca').oninput = renderCatalog;
 
         document.getElementById('btn-emprestar').onclick = async () => {
-            const livroId = document.getElementById('emp-livro-id').value;
+            const livroId = document.getElementById('emp-livro-id').value.trim();
             if (!livroId) return toast("Informe o ID do livro", "error");
-            const livro = state.livros.find(l => l.id === livroId);
-            if (!livro?.disponivel) return toast("Livro indisponível", "error");
-            await registrarEmprestimo(state.user.email, livroId);
-            toast("Empréstimo solicitado");
+            
+            try {
+                const livro = state.livros.find(l => l.id === livroId);
+                if (!livro) {
+                    return toast("Livro não encontrado", "error");
+                }
+                if (!livro.disponivel) {
+                    return toast("Livro indisponível", "error");
+                }
+                
+                await registrarEmprestimo(state.user.email, livroId);
+                toast("Empréstimo solicitado!");
+                
+                // Limpar campo
+                document.getElementById('emp-livro-id').value = "";
+                
+                // Atualizar lista de livros
+                await buscarLivros();
+                
+                // Atualizar estatísticas
+                const roleData = await fetchRole(state.user.email);
+                await updateStats(roleData);
+                
+                // Re-renderizar componentes visuais
+                renderFeaturedBooks();
+                if (currentPage === 'catalogo') {
+                    renderCatalog();
+                }
+            } catch (err) {
+                toast("Erro ao solicitar empréstimo: " + (err.message || "Erro desconhecido"), "error");
+                console.error("Erro ao registrar empréstimo:", err);
+            }
         };
 
         document.getElementById('btn-carregar-perguntas').onclick = async () => {
