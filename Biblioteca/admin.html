@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca - Admin</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Painel Admin</h1>
+        <p>Criar/editar/excluir livros e cadastrar perguntas por livro para gamificação.</p>
+    </header>
+
+    <div class="grid">
+        <section class="card">
+            <div class="inline" style="justify-content: space-between;">
+                <h2>Admin <span>admin.html</span></h2>
+                <div class="inline">
+                    <div class="badge badge-success" id="admin-role-badge">Admin</div>
+                    <button class="btn-secondary" id="btn-logout">Sair</button>
+                </div>
+            </div>
+            <p class="muted">Endpoints devem ser implementados no Apps Script.</p>
+
+            <div class="stack">
+                <div class="inline">
+                    <input id="admin-livro-id" placeholder="Livro ID">
+                    <input id="admin-titulo" placeholder="Título">
+                    <input id="admin-autor" placeholder="Autor">
+                    <input id="admin-link" placeholder="Link/PDF (opcional)">
+                    <button class="btn-primary" id="btn-admin-cadastrar">Criar</button>
+                    <button class="btn-secondary" id="btn-admin-editar">Editar</button>
+                    <button class="btn-danger" id="btn-admin-remover">Excluir</button>
+                </div>
+
+                <div class="inline">
+                    <input id="admin-marcar-id" placeholder="Livro ID">
+                    <button class="btn-secondary" id="btn-admin-marcar-devolvido">Marcar devolvido</button>
+                </div>
+
+                <div class="inline">
+                    <input id="admin-pergunta-livro" placeholder="Livro ID">
+                    <input id="admin-pergunta" placeholder="Pergunta para gamificação">
+                    <input id="admin-pergunta-resposta" placeholder="Resposta correta">
+                    <input id="admin-pergunta-pontos" type="number" min="0" value="10" style="width:100px;">
+                    <button class="btn-secondary" id="btn-admin-pergunta">Criar pergunta</button>
+                </div>
+
+                <div class="inline">
+                    <button class="btn-secondary" id="btn-admin-atualizar">Atualizar catálogo</button>
+                    <button class="btn-secondary" id="btn-admin-ranking">Ver ranking</button>
+                    <button class="btn-secondary" id="btn-admin-estat">Ver estatísticas</button>
+                </div>
+            </div>
+
+            <table class="table" id="tabela-admin">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Título</th>
+                        <th>Autor</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <div id="admin-status" class="muted" style="margin-top:8px;"></div>
+        </section>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="common.js"></script>
+    <script>
+        function renderLivrosAdmin() {
+            const tbody = document.querySelector("#tabela-admin tbody");
+            tbody.innerHTML = "";
+            state.livros.forEach(livro => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${livro.id || "-"}</td>
+                    <td>${livro.titulo || "-"}</td>
+                    <td>${livro.autor || "-"}</td>
+                    <td>${livro.disponivel ? "Disponível" : "Emprestado"}</td>
+                `;
+                // click para preencher formulário
+                tr.addEventListener("click", () => {
+                    document.getElementById("admin-livro-id").value = livro.id || "";
+                    document.getElementById("admin-titulo").value = livro.titulo || "";
+                    document.getElementById("admin-autor").value = livro.autor || "";
+                    document.getElementById("admin-link").value = livro.link || "";
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById("btn-admin-atualizar").onclick = async () => {
+            await buscarLivros();
+            renderLivrosAdmin();
+        };
+        document.getElementById("btn-admin-cadastrar").onclick = async () => {
+            const id = document.getElementById("admin-livro-id").value;
+            const titulo = document.getElementById("admin-titulo").value;
+            const autor = document.getElementById("admin-autor").value;
+            const link = document.getElementById("admin-link").value;
+            if (!id || !titulo) return toast("Preencha ID e título", "error");
+            try {
+                await registrarLivro({ id, titulo, autor, link, email: state.user.email });
+                toast("Livro criado");
+                await buscarLivros();
+                renderLivrosAdmin();
+            } catch (e) { toast("Erro ao criar livro", "error"); }
+        };
+
+        document.getElementById("btn-admin-editar").onclick = async () => {
+            const id = document.getElementById("admin-livro-id").value;
+            const titulo = document.getElementById("admin-titulo").value;
+            const autor = document.getElementById("admin-autor").value;
+            const link = document.getElementById("admin-link").value;
+            if (!id) return toast("Informe o ID para editar", "error");
+            try {
+                await editarLivro({ id, titulo, autor, link, email: state.user.email });
+                toast("Livro atualizado");
+                await buscarLivros();
+                renderLivrosAdmin();
+            } catch (e) { toast("Erro ao editar livro", "error"); }
+        };
+
+        document.getElementById("btn-admin-remover").onclick = async () => {
+            const id = document.getElementById("admin-livro-id").value;
+            if (!id) return toast("Informe o ID para excluir", "error");
+            try {
+                await excluirLivro({ id, email: state.user.email });
+                toast("Livro excluído");
+                await buscarLivros();
+                renderLivrosAdmin();
+            } catch (e) { toast("Erro ao excluir livro", "error"); }
+        };
+
+        document.getElementById("btn-admin-marcar-devolvido").onclick = async () => {
+            const id = document.getElementById("admin-marcar-id").value;
+            if (!id) return toast("Informe o ID", "error");
+            try {
+                await finalizarEmprestimo(state.user.email, id);
+                toast("Marcado como devolvido");
+                await buscarLivros();
+                renderLivrosAdmin();
+            } catch (e) { toast("Erro ao marcar devolução", "error"); }
+        };
+
+        document.getElementById("btn-admin-pergunta").onclick = async () => {
+            const livroId = document.getElementById("admin-pergunta-livro").value;
+            const pergunta = document.getElementById("admin-pergunta").value;
+            const resposta = document.getElementById("admin-pergunta-resposta").value;
+            const pontos = Number(document.getElementById("admin-pergunta-pontos").value || 0);
+            if (!livroId || !pergunta || !resposta) return toast("Informe livro, pergunta e resposta", "error");
+            try {
+                await criarPergunta({ livroId, pergunta, resposta, pontos, email: state.user.email });
+                toast("Pergunta criada");
+            } catch (e) { toast("Erro ao criar pergunta", "error"); }
+        };
+        document.getElementById("btn-admin-ranking").onclick = async () => {
+            try {
+                const ranking = await buscarRanking();
+                let msg = "🏆 RANKING:\n\n";
+                ranking.slice(0, 10).forEach((u, i) => {
+                    msg += `${i + 1}. ${u.nome || u.email} - ${u.pontos} pts (Nível ${u.nivel})\n`;
+                });
+                alert(msg);
+            } catch (e) {
+                toast("Erro ao buscar ranking", "error");
+            }
+        };
+        document.getElementById("btn-admin-estat").onclick = () => toast("Estatísticas em desenvolvimento", "info");
+        document.getElementById("btn-logout").onclick = () => auth.signOut();
+
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location.href = "index.html";
+                return;
+            }
+            state.user = user;
+            const roleData = await fetchRole(user.email);
+            if (roleData.role !== "admin") {
+                window.location.href = "dashboard.html";
+                return;
+            }
+            document.getElementById("admin-role-badge").textContent = 
+                `${roleData.role} - ${roleData.pontos} pts (Nível ${roleData.nivel})`;
+            await buscarLivros();
+            renderLivrosAdmin();
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca - Cadastro</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Crie sua conta</h1>
+        <p>Firebase Auth + role gravado no Google Sheets via Apps Script</p>
+    </header>
+
+    <div class="grid">
+        <section class="card">
+            <h2>Cadastro <span>cadastro.html</span></h2>
+            <p class="muted">Após criar, faça login em index.html.</p>
+            <div class="stack">
+                <div>
+                    <label for="cad-email">Email</label>
+                    <input id="cad-email" type="email" placeholder="voce@exemplo.com">
+                </div>
+                <div>
+                    <label for="cad-nome">Nome</label>
+                    <input id="cad-nome" type="text" placeholder="Seu nome">
+                </div>
+                <div>
+                    <label for="cad-senha">Senha</label>
+                    <input id="cad-senha" type="password" placeholder="******">
+                </div>
+                <div class="inline">
+                    <button class="btn-primary" id="btn-cadastrar">Criar conta</button>
+                    <a href="index.html" class="btn-secondary" style="text-decoration:none;display:inline-block;">Voltar</a>
+                </div>
+                <div id="cad-status" class="muted"></div>
+            </div>
+        </section>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="common.js"></script>
+    <script>
+        auth.onAuthStateChanged((user) => {
+            if (user) window.location.href = "dashboard.html";
+        });
+
+        document.getElementById("btn-cadastrar").onclick = async () => {
+            const email = document.getElementById("cad-email").value;
+            const nome = document.getElementById("cad-nome").value;
+            const senha = document.getElementById("cad-senha").value;
+            const status = document.getElementById("cad-status");
+            status.textContent = "Criando conta...";
+            try {
+                const cred = await auth.createUserWithEmailAndPassword(email, senha);
+                await registrarUsuario(email, nome);
+                status.textContent = "Conta criada! Faça login.";
+                toast("Usuário cadastrado");
+                await auth.signOut();
+                window.location.href = "index.html";
+            } catch (err) {
+                status.textContent = err.message;
+                toast("Erro ao cadastrar", "error");
+            }
+        };
+    </script>
+</body>
+</html>
+
